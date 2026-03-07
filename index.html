@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BrainBlitz — Teen Edition</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&family=Hind+Siliguri:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#0a0a0f; --surface:#13131c; --card:#1a1a28; --border:#2a2a40;
+    --math:#f0c040; --vocab:#50e8b0; --science:#f06090;
+    --text:#e8e8f0; --muted:#7070a0; --correct:#40e870; --wrong:#f04060;
+    --radius:16px;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body {
+    background:var(--bg); color:var(--text);
+    font-family:'DM Sans',sans-serif;
+    min-height:100vh; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; padding:24px 16px;
+    background-image:
+      radial-gradient(ellipse 60% 40% at 80% 10%,rgba(240,192,64,.07) 0%,transparent 60%),
+      radial-gradient(ellipse 50% 50% at 10% 90%,rgba(80,232,176,.07) 0%,transparent 60%),
+      radial-gradient(ellipse 40% 40% at 50% 50%,rgba(240,96,144,.05) 0%,transparent 70%);
+  }
+  body.bn { font-family:'Hind Siliguri',sans-serif; }
+  h1 { font-family:'Syne',sans-serif; font-size:clamp(2rem,6vw,3.2rem); font-weight:800; letter-spacing:-1px; text-align:center; }
+  .tagline { color:var(--muted); font-size:1rem; margin-top:6px; text-align:center; }
+  .screen { display:none; width:100%; max-width:700px; animation:fadeUp .4s ease; }
+  .screen.active { display:flex; flex-direction:column; align-items:center; gap:24px; }
+  @keyframes fadeUp { from{opacity:0;transform:translateY(18px);}to{opacity:1;transform:translateY(0);} }
+
+  /* TOP BAR */
+  .top-bar { position:fixed; top:14px; right:14px; display:flex; gap:8px; z-index:999; }
+  .top-btn { background:var(--card); border:1px solid var(--border); border-radius:100px; padding:8px 14px; cursor:pointer; font-size:1rem; transition:all .18s; user-select:none; color:var(--text); font-family:inherit; font-weight:600; }
+  .top-btn:hover { background:var(--border); }
+  .lang-btn { font-size:0.85rem; letter-spacing:.5px; }
+
+  /* SUBJECT GRID */
+  .subject-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; width:100%; }
+  .subject-card { background:var(--card); border:2px solid var(--border); border-radius:var(--radius); padding:22px 12px; cursor:pointer; text-align:center; transition:transform .18s,border-color .18s,box-shadow .18s; user-select:none; }
+  .subject-card:hover { transform:translateY(-3px); }
+  .subject-card.selected[data-subject="math"]    { border-color:var(--math);    box-shadow:0 0 20px rgba(240,192,64,.25); }
+  .subject-card.selected[data-subject="vocab"]   { border-color:var(--vocab);   box-shadow:0 0 20px rgba(80,232,176,.25); }
+  .subject-card.selected[data-subject="science"] { border-color:var(--science); box-shadow:0 0 20px rgba(240,96,144,.25); }
+  .subject-icon { font-size:2rem; margin-bottom:8px; }
+  .subject-name { font-family:'Syne',sans-serif; font-size:.95rem; font-weight:700; }
+
+  /* DIFFICULTY */
+  .diff-row { display:flex; gap:12px; }
+  .diff-btn { flex:1; padding:14px; border-radius:12px; background:var(--card); border:2px solid var(--border); color:var(--text); font-family:inherit; font-size:.95rem; font-weight:700; cursor:pointer; transition:all .18s; }
+  .diff-btn:hover,.diff-btn.selected { background:var(--border); border-color:var(--text); }
+
+  /* BUTTONS */
+  .btn-primary { width:100%; padding:16px; border-radius:var(--radius); font-family:inherit; font-size:1.1rem; font-weight:800; cursor:pointer; border:none; transition:transform .15s,opacity .15s; letter-spacing:.3px; }
+  .btn-primary:hover:not(:disabled) { transform:scale(1.02); }
+  .btn-primary:disabled { opacity:.35; cursor:not-allowed; }
+  .btn-primary.neutral { background:var(--text); color:var(--bg); }
+  .btn-outline { width:100%; padding:14px; border-radius:var(--radius); font-family:inherit; font-size:1rem; font-weight:700; cursor:pointer; border:2px solid var(--border); background:transparent; color:var(--text); transition:all .18s; }
+  .btn-outline:hover { background:var(--card); border-color:var(--text); }
+
+  /* NAME INPUT */
+  .name-input { width:100%; background:var(--card); border:2px solid var(--border); border-radius:var(--radius); padding:16px 18px; color:var(--text); font-family:inherit; font-size:1rem; outline:none; transition:border-color .2s; }
+  .name-input:focus { border-color:var(--vocab); }
+  .name-input::placeholder { color:var(--muted); }
+
+  /* GAME HEADER */
+  .game-header { width:100%; display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }
+  .stat-pill { background:var(--card); border:1px solid var(--border); border-radius:100px; padding:8px 16px; font-size:.82rem; font-weight:600; display:flex; align-items:center; gap:6px; }
+  .stat-value { font-family:'Syne',sans-serif; font-size:1rem; font-weight:800; }
+
+  /* PROGRESS */
+  .progress-track { width:100%; height:6px; background:var(--border); border-radius:100px; overflow:hidden; }
+  .progress-fill  { height:100%; border-radius:100px; transition:width .5s cubic-bezier(.4,0,.2,1); }
+  .timer-track { width:100%; height:5px; background:var(--border); border-radius:100px; overflow:hidden; }
+  .timer-fill  { height:100%; width:100%; border-radius:100px; transition:width .1s linear,background .5s; }
+
+  /* QUESTION */
+  .q-card { width:100%; background:var(--card); border:2px solid var(--border); border-radius:20px; padding:26px 26px 20px; }
+  .q-meta { display:flex; align-items:center; gap:10px; margin-bottom:16px; }
+  .q-subject-badge { padding:4px 12px; border-radius:100px; font-size:.72rem; font-family:'Syne',sans-serif; font-weight:800; letter-spacing:1px; text-transform:uppercase; }
+  .q-num { color:var(--muted); font-size:.85rem; }
+  .q-text { font-size:clamp(1rem,2.5vw,1.18rem); font-weight:500; line-height:1.6; }
+
+  /* ANSWERS */
+  .answers-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; width:100%; }
+  .ans-btn { background:var(--card); border:2px solid var(--border); color:var(--text); border-radius:14px; padding:15px 13px; font-family:inherit; font-size:.93rem; font-weight:500; cursor:pointer; text-align:left; transition:all .18s; line-height:1.45; }
+  .ans-btn:hover:not(:disabled) { background:var(--surface); border-color:var(--muted); transform:translateY(-2px); }
+  .ans-btn:disabled { cursor:default; }
+  .ans-btn.correct { background:rgba(64,232,112,.15); border-color:var(--correct); color:var(--correct); }
+  .ans-btn.wrong   { background:rgba(240,64,96,.12);  border-color:var(--wrong);   color:var(--wrong); }
+
+  /* FEEDBACK */
+  .feedback-box { width:100%; border-radius:14px; padding:14px 18px; font-size:.92rem; line-height:1.55; display:none; animation:fadeUp .3s ease; }
+  .feedback-box.correct { background:rgba(64,232,112,.12); border:1px solid rgba(64,232,112,.4); color:var(--correct); }
+  .feedback-box.wrong   { background:rgba(240,64,96,.1);   border:1px solid rgba(240,64,96,.4);  color:#ff8090; }
+  .feedback-box.show    { display:block; }
+  #next-btn { display:none; width:100%; padding:14px; border-radius:var(--radius); font-family:inherit; font-size:1rem; font-weight:800; cursor:pointer; border:2px solid var(--border); background:transparent; color:var(--text); transition:all .18s; }
+  #next-btn:hover { background:var(--card); border-color:var(--text); }
+  #next-btn.show { display:block; animation:fadeUp .3s ease; }
+
+  /* RESULTS */
+  .big-score { font-family:'Syne',sans-serif; font-size:clamp(3.5rem,10vw,6rem); font-weight:800; line-height:1; text-align:center; }
+  .result-grade { font-family:'Syne',sans-serif; font-size:1.3rem; font-weight:700; text-align:center; margin-top:8px; }
+  .breakdown { width:100%; background:var(--card); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; }
+  .breakdown-row { display:flex; justify-content:space-between; align-items:center; padding:14px 20px; border-bottom:1px solid var(--border); font-size:.95rem; }
+  .breakdown-row:last-child { border-bottom:none; }
+  .breakdown-label { display:flex; align-items:center; gap:10px; }
+  .breakdown-dot { width:10px; height:10px; border-radius:50%; }
+  .breakdown-val { font-family:'Syne',sans-serif; font-weight:700; font-size:1rem; }
+
+  /* LEADERBOARD */
+  .lb-table { width:100%; background:var(--card); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; }
+  .lb-row { display:flex; align-items:center; gap:14px; padding:14px 20px; border-bottom:1px solid var(--border); font-size:.93rem; }
+  .lb-row:last-child { border-bottom:none; }
+  .lb-rank { font-family:'Syne',sans-serif; font-weight:800; font-size:1.1rem; width:28px; text-align:center; flex-shrink:0; }
+  .lb-name { flex:1; font-weight:600; }
+  .lb-score { font-family:'Syne',sans-serif; font-weight:800; font-size:1rem; }
+  .lb-meta { color:var(--muted); font-size:.78rem; }
+  .lb-empty { text-align:center; color:var(--muted); padding:30px; font-size:.95rem; }
+  .rank-1{color:#f0c040;} .rank-2{color:#b0b8c8;} .rank-3{color:#cd7c40;}
+  .lb-new-badge { background:rgba(80,232,176,.2); color:var(--vocab); font-size:.7rem; font-family:'Syne',sans-serif; font-weight:800; padding:2px 8px; border-radius:100px; letter-spacing:.5px; }
+
+  /* MISC */
+  .menu-nav { display:flex; gap:10px; width:100%; }
+  .fill-math{background:var(--math);} .fill-vocab{background:var(--vocab);} .fill-science{background:var(--science);}
+  .subject-tag-math{background:rgba(240,192,64,.18);color:var(--math);}
+  .subject-tag-vocab{background:rgba(80,232,176,.18);color:var(--vocab);}
+  .subject-tag-science{background:rgba(240,96,144,.18);color:var(--science);}
+  .dev-credit { color:var(--muted); font-size:.78rem; text-align:center; margin-top:4px; letter-spacing:.5px; }
+  .dev-credit span { color:var(--vocab); font-weight:600; }
+  .section-label { color:var(--muted); font-size:.82rem; margin-bottom:10px; text-align:center; font-weight:600; letter-spacing:.5px; }
+</style>
+</head>
+<body>
+
+<!-- TOP BUTTONS -->
+<div class="top-bar">
+  <button class="top-btn lang-btn" id="lang-btn" onclick="toggleLang()">বাং</button>
+  <button class="top-btn" id="sound-btn" onclick="toggleSound()">🔊</button>
+</div>
+
+<!-- ══ MENU ══ -->
+<div class="screen active" id="screen-menu">
+  <div>
+    <h1>Brain<span style="color:var(--vocab)">Blitz</span></h1>
+    <p class="tagline" id="t-tagline">Fast questions. Real knowledge. Zero boredom.</p>
+  </div>
+
+  <div style="width:100%">
+    <p class="section-label" id="t-name-label">YOUR NAME</p>
+    <input class="name-input" id="player-name" type="text" maxlength="20" oninput="updateStartBtn()">
+  </div>
+
+  <div class="subject-grid">
+    <div class="subject-card" data-subject="math" onclick="toggleSubject(this)">
+      <div class="subject-icon">🧮</div>
+      <div class="subject-name" id="t-math" style="color:var(--math)">Math</div>
+    </div>
+    <div class="subject-card" data-subject="vocab" onclick="toggleSubject(this)">
+      <div class="subject-icon">📖</div>
+      <div class="subject-name" id="t-vocab" style="color:var(--vocab)">Vocabulary</div>
+    </div>
+    <div class="subject-card" data-subject="science" onclick="toggleSubject(this)">
+      <div class="subject-icon">🔬</div>
+      <div class="subject-name" id="t-science" style="color:var(--science)">Science</div>
+    </div>
+  </div>
+
+  <div style="width:100%">
+    <p class="section-label" id="t-diff-label">DIFFICULTY</p>
+    <div class="diff-row">
+      <button class="diff-btn selected" data-diff="easy"   onclick="setDiff(this)" id="t-easy">Easy</button>
+      <button class="diff-btn"          data-diff="medium" onclick="setDiff(this)" id="t-medium">Medium</button>
+      <button class="diff-btn"          data-diff="hard"   onclick="setDiff(this)" id="t-hard">Hard</button>
+    </div>
+  </div>
+
+  <div class="menu-nav">
+    <button class="btn-primary neutral" id="start-btn" onclick="startGame()" disabled style="flex:2">—</button>
+    <button class="btn-outline" onclick="gotoLB()" style="flex:1" id="t-lb-btn">🏆 Board</button>
+  </div>
+  <p class="dev-credit">Developed by <span>Siyam Badsha</span></p>
+</div>
+
+<!-- ══ GAME ══ -->
+<div class="screen" id="screen-game">
+  <div class="game-header">
+    <div class="stat-pill">🎯 <span class="stat-value" id="score-display">0</span></div>
+    <div class="stat-pill">❓ <span class="stat-value" id="q-counter">1/10</span></div>
+    <div class="stat-pill">🔥 <span class="stat-value" id="streak-display">0</span></div>
+  </div>
+  <div class="progress-track"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+  <div class="timer-track"><div class="timer-fill" id="timer-fill"></div></div>
+  <div class="q-card">
+    <div class="q-meta">
+      <span class="q-subject-badge" id="q-badge">MATH</span>
+      <span class="q-num" id="q-diff-label">Easy</span>
+    </div>
+    <p class="q-text" id="q-text">…</p>
+  </div>
+  <div class="answers-grid" id="answers-grid"></div>
+  <div class="feedback-box" id="feedback-box"></div>
+  <button id="next-btn" onclick="nextQuestion()">Next →</button>
+  <p class="dev-credit">Developed by <span>Siyam Badsha</span></p>
+</div>
+
+<!-- ══ RESULTS ══ -->
+<div class="screen" id="screen-results">
+  <div>
+    <h1>Brain<span style="color:var(--vocab)">Blitz</span></h1>
+    <p class="tagline" id="t-results-sub">Results</p>
+  </div>
+  <div class="big-score" id="final-score">0</div>
+  <div class="result-grade" id="grade-display"></div>
+  <div class="breakdown" id="breakdown"></div>
+  <div class="menu-nav">
+    <button class="btn-primary neutral" onclick="backToMenu()" id="t-play-again" style="flex:1">← Play Again</button>
+    <button class="btn-outline" onclick="gotoLB()" id="t-see-lb" style="flex:1">🏆 Leaderboard</button>
+  </div>
+  <p class="dev-credit">Developed by <span>Siyam Badsha</span></p>
+</div>
+
+<!-- ══ LEADERBOARD ══ -->
+<div class="screen" id="screen-leaderboard">
+  <div>
+    <h1>Brain<span style="color:var(--vocab)">Blitz</span></h1>
+    <p class="tagline" id="t-hof">Hall of Fame</p>
+  </div>
+  <p style="font-family:'Syne',sans-serif;font-size:1.4rem;font-weight:800;text-align:center">🏆 <span id="t-top-scores">Top Scores</span></p>
+  <div class="lb-table" id="lb-table"></div>
+  <button class="btn-outline" onclick="backToMenu()" id="t-back-menu">← Back to Menu</button>
+  <p class="dev-credit">Developed by <span>Siyam Badsha</span></p>
+</div>
+
+<script>
+// ══════════════════════════════════════
+//  LANGUAGE SYSTEM
+// ══════════════════════════════════════
+let lang = 'en';
+
+const T = {
+  en: {
+    tagline:        'Fast questions. Real knowledge. Zero boredom.',
+    namePlaceholder:'Enter your name…',
+    nameLabel:      'YOUR NAME',
+    diffLabel:      'DIFFICULTY',
+    math:           'Math',
+    vocab:          'Vocabulary',
+    science:        'Science',
+    easy:           'Easy',
+    medium:         'Medium',
+    hard:           'Hard',
+    startDefault:   'Enter name & select subject →',
+    startReady:     (n,s) => `Start Game (${n} subject${n>1?'s':''}) →`,
+    lbBtn:          '🏆 Board',
+    resultsSub:     'Results',
+    playAgain:      '← Play Again',
+    seeLB:          '🏆 Leaderboard',
+    hof:            'Hall of Fame',
+    topScores:      'Top Scores',
+    backMenu:       '← Back to Menu',
+    correct:        (pts,streak) => streak>=5?`🔥 ${streak}x STREAK! +${pts} pts — `:streak>=3?`⚡ ${streak}x Streak! +${pts} pts — `:`✅ Correct! +${pts} pts — `,
+    wrong:          '❌ Not quite. ',
+    timeup:         "⏰ Time's up! ",
+    nextQ:          'Next Question →',
+    seeResults:     'See Results →',
+    subject:        'SUBJECT',
+    score:          'SCORE',
+    player:         'Player',
+    totalScore:     'Total Score',
+    lbEmpty:        'No scores yet — play a game to get on the board! 🎮',
+    grade: ratio => ratio>=.9?'🏆 Outstanding!':ratio>=.75?'🎉 Excellent!':ratio>=.6?'👍 Good job!':ratio>=.45?'📚 Keep studying!':'💪 Try again!',
+    subjectNames:   { math:'Math', vocab:'Vocabulary', science:'Science' },
+    diffNames:      { easy:'Easy', medium:'Medium', hard:'Hard' },
+  },
+  bn: {
+    tagline:        'দ্রুত প্রশ্ন। আসল জ্ঞান। একদম বোরিং না।',
+    namePlaceholder:'তোমার নাম লেখো…',
+    nameLabel:      'তোমার নাম',
+    diffLabel:      'কঠিনতার মাত্রা',
+    math:           'গণিত',
+    vocab:          'শব্দভান্ডার',
+    science:        'বিজ্ঞান',
+    easy:           'সহজ',
+    medium:         'মাঝারি',
+    hard:           'কঠিন',
+    startDefault:   'নাম দাও এবং বিষয় বেছে নাও →',
+    startReady:     (n,s) => `খেলা শুরু করো (${n}টি বিষয়) →`,
+    lbBtn:          '🏆 বোর্ড',
+    resultsSub:     'ফলাফল',
+    playAgain:      '← আবার খেলো',
+    seeLB:          '🏆 লিডারবোর্ড',
+    hof:            'মেধাবীদের তালিকা',
+    topScores:      'সেরা স্কোর',
+    backMenu:       '← মেনুতে ফিরে যাও',
+    correct:        (pts,streak) => streak>=5?`🔥 ${streak}x ধারাবাহিক! +${pts} পয়েন্ট — `:streak>=3?`⚡ ${streak}x ধারা! +${pts} পয়েন্ট — `:`✅ সঠিক! +${pts} পয়েন্ট — `,
+    wrong:          '❌ ভুল হয়েছে। ',
+    timeup:         '⏰ সময় শেষ! ',
+    nextQ:          'পরের প্রশ্ন →',
+    seeResults:     'ফলাফল দেখো →',
+    subject:        'বিষয়',
+    score:          'স্কোর',
+    player:         'খেলোয়াড়',
+    totalScore:     'মোট স্কোর',
+    lbEmpty:        'এখনো কোনো স্কোর নেই — খেলো এবং বোর্ডে নাম তোলো! 🎮',
+    grade: ratio => ratio>=.9?'🏆 অসাধারণ!':ratio>=.75?'🎉 দারুণ!':ratio>=.6?'👍 ভালো করেছ!':ratio>=.45?'📚 আরো পড়তে হবে!':'💪 আবার চেষ্টা করো!',
+    subjectNames:   { math:'গণিত', vocab:'শব্দভান্ডার', science:'বিজ্ঞান' },
+    diffNames:      { easy:'সহজ', medium:'মাঝারি', hard:'কঠিন' },
+  }
+};
+
+function t(key, ...args) {
+  const val = T[lang][key];
+  return typeof val === 'function' ? val(...args) : val;
+}
+
+function applyLang() {
+  const isBn = lang === 'bn';
+  document.body.classList.toggle('bn', isBn);
+  document.getElementById('lang-btn').textContent = isBn ? 'EN' : 'বাং';
+
+  document.getElementById('t-tagline').textContent        = t('tagline');
+  document.getElementById('t-name-label').textContent     = t('nameLabel');
+  document.getElementById('player-name').placeholder      = t('namePlaceholder');
+  document.getElementById('t-diff-label').textContent     = t('diffLabel');
+  document.getElementById('t-math').textContent           = t('math');
+  document.getElementById('t-vocab').textContent          = t('vocab');
+  document.getElementById('t-science').textContent        = t('science');
+  document.getElementById('t-easy').textContent           = t('easy');
+  document.getElementById('t-medium').textContent         = t('medium');
+  document.getElementById('t-hard').textContent           = t('hard');
+  document.getElementById('t-lb-btn').textContent         = t('lbBtn');
+  document.getElementById('t-results-sub').textContent    = t('resultsSub');
+  document.getElementById('t-play-again').textContent     = t('playAgain');
+  document.getElementById('t-see-lb').textContent         = t('seeLB');
+  document.getElementById('t-hof').textContent            = t('hof');
+  document.getElementById('t-top-scores').textContent     = t('topScores');
+  document.getElementById('t-back-menu').textContent      = t('backMenu');
+  updateStartBtn();
+}
+
+function toggleLang() {
+  lang = lang === 'en' ? 'bn' : 'en';
+  playTone('click');
+  applyLang();
+  // If game is in progress, re-render question in new language
+  if (document.getElementById('screen-game').classList.contains('active') && queue.length) {
+    renderQuestion(true); // true = keep answered state
+  }
+}
+
+// ══════════════════════════════════════
+//  SOUND ENGINE
+// ══════════════════════════════════════
+let audioCtx = null, soundOn = true;
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+function playTone(type) {
+  if (!soundOn) return;
+  try {
+    const ctx = getAudioCtx();
+    const master = ctx.createGain();
+    master.gain.setValueAtTime(0.25, ctx.currentTime);
+    master.connect(ctx.destination);
+    if (type === 'correct') {
+      [[523,0,.12],[659,.1,.12],[784,.2,.18]].forEach(([f,d,dur])=>{
+        const o=ctx.createOscillator(),g=ctx.createGain();
+        o.connect(g);g.connect(master);o.type='sine';o.frequency.setValueAtTime(f,ctx.currentTime+d);
+        g.gain.setValueAtTime(.4,ctx.currentTime+d);g.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+d+dur);
+        o.start(ctx.currentTime+d);o.stop(ctx.currentTime+d+dur+.05);
+      });
+    } else if (type === 'wrong') {
+      const o=ctx.createOscillator(),g=ctx.createGain();
+      o.connect(g);g.connect(master);o.type='sawtooth';o.frequency.setValueAtTime(160,ctx.currentTime);
+      o.frequency.linearRampToValueAtTime(80,ctx.currentTime+.3);
+      g.gain.setValueAtTime(.3,ctx.currentTime);g.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+.35);
+      o.start();o.stop(ctx.currentTime+.4);
+    } else if (type === 'streak') {
+      [[523,0],[659,.08],[784,.16],[1047,.24],[1319,.32]].forEach(([f,d])=>{
+        const o=ctx.createOscillator(),g=ctx.createGain();
+        o.connect(g);g.connect(master);o.type='triangle';o.frequency.setValueAtTime(f,ctx.currentTime+d);
+        g.gain.setValueAtTime(.35,ctx.currentTime+d);g.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+d+.15);
+        o.start(ctx.currentTime+d);o.stop(ctx.currentTime+d+.2);
+      });
+    } else if (type === 'timeup') {
+      [0,.15,.3].forEach(d=>{
+        const o=ctx.createOscillator(),g=ctx.createGain();
+        o.connect(g);g.connect(master);o.type='square';o.frequency.setValueAtTime(440,ctx.currentTime+d);
+        g.gain.setValueAtTime(.2,ctx.currentTime+d);g.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+d+.1);
+        o.start(ctx.currentTime+d);o.stop(ctx.currentTime+d+.12);
+      });
+    } else if (type === 'click') {
+      const o=ctx.createOscillator(),g=ctx.createGain();
+      o.connect(g);g.connect(master);o.type='sine';o.frequency.setValueAtTime(600,ctx.currentTime);
+      o.frequency.exponentialRampToValueAtTime(300,ctx.currentTime+.06);
+      g.gain.setValueAtTime(.15,ctx.currentTime);g.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+.08);
+      o.start();o.stop(ctx.currentTime+.1);
+    } else if (type === 'win') {
+      [[523,0],[659,.12],[784,.24],[1047,.36],[784,.5],[1047,.62],[1319,.74]].forEach(([f,d])=>{
+        const o=ctx.createOscillator(),g=ctx.createGain();
+        o.connect(g);g.connect(master);o.type='sine';o.frequency.setValueAtTime(f,ctx.currentTime+d);
+        g.gain.setValueAtTime(.35,ctx.currentTime+d);g.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+d+.2);
+        o.start(ctx.currentTime+d);o.stop(ctx.currentTime+d+.25);
+      });
+    } else if (type === 'start') {
+      const o=ctx.createOscillator(),g=ctx.createGain();
+      o.connect(g);g.connect(master);o.type='sine';
+      o.frequency.setValueAtTime(200,ctx.currentTime);o.frequency.exponentialRampToValueAtTime(800,ctx.currentTime+.3);
+      g.gain.setValueAtTime(.2,ctx.currentTime);g.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+.35);
+      o.start();o.stop(ctx.currentTime+.4);
+    }
+  } catch(e){}
+}
+function toggleSound() {
+  soundOn=!soundOn;
+  document.getElementById('sound-btn').textContent=soundOn?'🔊':'🔇';
+  if(soundOn) playTone('click');
+}
+
+// ══════════════════════════════════════
+//  QUESTION BANK — BILINGUAL
+//  Each question: { en:{q,opts,exp}, bn:{q,opts,exp}, ans }
+// ══════════════════════════════════════
+const QUESTIONS = {
+  math: {
+    easy: [
+      { ans:0, en:{q:"What is 12 × 7?", opts:["84","82","96","78"], exp:"12×7 = (10×7)+(2×7) = 70+14 = 84."}, bn:{q:"১২ × ৭ = কত?", opts:["৮৪","৮২","৯৬","৭৮"], exp:"১২×৭ = (১০×৭)+(২×৭) = ৭০+১৪ = ৮৪।"} },
+      { ans:1, en:{q:"What is 25% of 80?", opts:["15","20","25","30"], exp:"25% = ¼. So ¼ × 80 = 20."}, bn:{q:"৮০ এর ২৫% কত?", opts:["১৫","২০","২৫","৩০"], exp:"২৫% = ১/৪। তাই ১/৪ × ৮০ = ২০।"} },
+      { ans:1, en:{q:"Solve: 3x = 27", opts:["x=7","x=9","x=8","x=6"], exp:"Divide both sides by 3: x = 9."}, bn:{q:"সমাধান করো: 3x = 27", opts:["x=৭","x=৯","x=৮","x=৬"], exp:"উভয় পক্ষকে ৩ দিয়ে ভাগ করো: x = ৯।"} },
+      { ans:2, en:{q:"What is √144?", opts:["11","13","12","14"], exp:"12 × 12 = 144, so √144 = 12."}, bn:{q:"√১৪৪ = কত?", opts:["১১","১৩","১২","১৪"], exp:"১২ × ১২ = ১৪৪, তাই √১৪৪ = ১২।"} },
+      { ans:2, en:{q:"Perimeter of a square with side 8?", opts:["24","28","32","36"], exp:"Perimeter = 4 × side = 4 × 8 = 32."}, bn:{q:"৮ একক বাহুর বর্গের পরিসীমা কত?", opts:["২৪","২৮","৩২","৩৬"], exp:"পরিসীমা = ৪ × বাহু = ৪ × ৮ = ৩২।"} },
+      { ans:2, en:{q:"What is 6³?", opts:["36","180","216","196"], exp:"6³ = 6×6×6 = 216."}, bn:{q:"৬³ = কত?", opts:["৩৬","১৮০","২১৬","১৯৬"], exp:"৬³ = ৬×৬×৬ = ২১৬।"} },
+      { ans:2, en:{q:"What is the LCM of 4 and 6?", opts:["8","10","12","24"], exp:"Multiples of 4: 4,8,12… Multiples of 6: 6,12… LCM = 12."}, bn:{q:"৪ এবং ৬ এর লসাগু কত?", opts:["৮","১০","১২","২৪"], exp:"৪ এর গুণিতক: ৪,৮,১২… ৬ এর গুণিতক: ৬,১২… লসাগু = ১২।"} },
+      { ans:1, en:{q:"Solve: x + 15 = 34", opts:["x=17","x=19","x=21","x=15"], exp:"x = 34 − 15 = 19."}, bn:{q:"সমাধান করো: x + ১৫ = ৩৪", opts:["x=১৭","x=১৯","x=২১","x=১৫"], exp:"x = ৩৪ − ১৫ = ১৯।"} },
+    ],
+    medium: [
+      { ans:2, en:{q:"A jacket costs $60 after 25% discount. Original price?", opts:["$72","$75","$80","$85"], exp:"$60 = 75% of original. Original = 60 ÷ 0.75 = $80."}, bn:{q:"২৫% ছাড়ের পর একটি জ্যাকেটের দাম ৬০০ টাকা। আসল দাম কত?", opts:["৭২০","৭৫০","৮০০","৮৫০"], exp:"৬০০ = আসল দামের ৭৫%। আসল দাম = ৬০০ ÷ ০.৭৫ = ৮০০ টাকা।"} },
+      { ans:1, en:{q:"Slope of the line through (2,3) and (6,11)?", opts:["1","2","3","4"], exp:"Slope = (11−3)/(6−2) = 8/4 = 2."}, bn:{q:"(২,৩) ও (৬,১১) বিন্দু দিয়ে যাওয়া সরলরেখার ঢাল কত?", opts:["১","২","৩","৪"], exp:"ঢাল = (১১−৩)/(৬−২) = ৮/৪ = ২।"} },
+      { ans:1, en:{q:"What is 2³ + 3²?", opts:["13","17","15","19"], exp:"2³=8, 3²=9. 8+9=17."}, bn:{q:"2³ + 3² = কত?", opts:["১৩","১৭","১৫","১৯"], exp:"2³=৮, 3²=৯। ৮+৯=১৭।"} },
+      { ans:2, en:{q:"Triangle has angles 55° and 80°. Third angle?", opts:["35°","40°","45°","50°"], exp:"180−55−80 = 45°."}, bn:{q:"ত্রিভুজের দুইটি কোণ ৫৫° ও ৮০°। তৃতীয় কোণ কত?", opts:["৩৫°","৪০°","৪৫°","৫০°"], exp:"১৮০−৫৫−৮০ = ৪৫°।"} },
+      { ans:1, en:{q:"What is 15% of 240?", opts:["30","36","38","42"], exp:"10%=24, 5%=12. 15% = 36."}, bn:{q:"২৪০ এর ১৫% কত?", opts:["৩০","৩৬","৩৮","৪২"], exp:"১০%=২৪, ৫%=১২। ১৫% = ৩৬।"} },
+      { ans:2, en:{q:"Solve: 2x − 4 = 10", opts:["x=5","x=6","x=7","x=8"], exp:"2x = 14, x = 7."}, bn:{q:"সমাধান করো: 2x − 4 = 10", opts:["x=৫","x=৬","x=৭","x=৮"], exp:"2x = ১৪, x = ৭।"} },
+      { ans:1, en:{q:"Area of a rectangle 9 × 13?", opts:["104","117","121","108"], exp:"Area = 9 × 13 = 117."}, bn:{q:"৯ × ১৩ আয়তক্ষেত্রের ক্ষেত্রফল?", opts:["১০৪","১১৭","১২১","১০৮"], exp:"ক্ষেত্রফল = ৯ × ১৩ = ১১৭।"} },
+      { ans:2, en:{q:"What is the HCF of 24 and 36?", opts:["6","8","12","18"], exp:"Common factors: 1,2,3,4,6,12. HCF = 12."}, bn:{q:"২৪ ও ৩৬ এর গসাগু কত?", opts:["৬","৮","১২","১৮"], exp:"সাধারণ গুণনীয়ক: ১,২,৩,৪,৬,১২। গসাগু = ১২।"} },
+    ],
+    hard: [
+      { ans:0, en:{q:"Roots of x² − 5x + 6 = 0?", opts:["x=2,3","x=1,6","x=−2,−3","x=2,−3"], exp:"Factor: (x−2)(x−3)=0 → x=2 or x=3."}, bn:{q:"x² − 5x + 6 = 0 এর মূল কত?", opts:["x=২,৩","x=১,৬","x=−২,−৩","x=২,−৩"], exp:"উৎপাদক: (x−২)(x−৩)=০ → x=২ বা x=৩।"} },
+      { ans:2, en:{q:"Car travels 150 km in 2.5 hours. Speed?", opts:["50 km/h","55 km/h","60 km/h","65 km/h"], exp:"Speed = 150 ÷ 2.5 = 60 km/h."}, bn:{q:"একটি গাড়ি ২.৫ ঘণ্টায় ১৫০ কিমি যায়। গতিবেগ কত?", opts:["৫০ কিমি/ঘণ্টা","৫৫ কিমি/ঘণ্টা","৬০ কিমি/ঘণ্টা","৬৫ কিমি/ঘণ্টা"], exp:"গতিবেগ = ১৫০ ÷ ২.৫ = ৬০ কিমি/ঘণ্টা।"} },
+      { ans:2, en:{q:"What is log₂(64)?", opts:["4","5","6","8"], exp:"2⁶ = 64, so log₂(64) = 6."}, bn:{q:"log₂(64) = কত?", opts:["৪","৫","৬","৮"], exp:"2⁶ = ৬৪, তাই log₂(64) = ৬।"} },
+      { ans:1, en:{q:"Simplify: (3x²)(4x³)", opts:["7x⁵","12x⁵","12x⁶","7x⁶"], exp:"3×4=12; x²⁺³=x⁵ → 12x⁵."}, bn:{q:"সরল করো: (3x²)(4x³)", opts:["7x⁵","12x⁵","12x⁶","7x⁶"], exp:"৩×৪=১২; x²⁺³=x⁵ → 12x⁵।"} },
+      { ans:0, en:{q:"Area of circle, radius 5. (π≈3.14)", opts:["78.5","75","80.5","70"], exp:"Area = π r² = 3.14 × 25 = 78.5."}, bn:{q:"ব্যাসার্ধ ৫ এর বৃত্তের ক্ষেত্রফল? (π≈3.14)", opts:["৭৮.৫","৭৫","৮০.৫","৭০"], exp:"ক্ষেত্রফল = π r² = ৩.১৪ × ২৫ = ৭৮.৫।"} },
+      { ans:1, en:{q:"If f(x) = 2x² − 3, find f(4)", opts:["25","29","32","35"], exp:"f(4) = 2(16)−3 = 32−3 = 29."}, bn:{q:"যদি f(x) = 2x² − 3 হয়, f(4) = কত?", opts:["২৫","২৯","৩২","৩৫"], exp:"f(৪) = ২(১৬)−৩ = ৩২−৩ = ২৯।"} },
+      { ans:1, en:{q:"Solve: |x − 3| = 7", opts:["x=4 or −10","x=10 or −4","x=10 or 4","x=−10 or −4"], exp:"x−3=7→x=10. x−3=−7→x=−4."}, bn:{q:"সমাধান করো: |x − ৩| = ৭", opts:["x=৪ বা −১০","x=১০ বা −৪","x=১০ বা ৪","x=−১০ বা −৪"], exp:"x−৩=৭→x=১০। x−৩=−৭→x=−৪।"} },
+      { ans:2, en:{q:"Sum of interior angles of a hexagon?", opts:["540°","620°","720°","900°"], exp:"Sum = (n−2)×180 = (6−2)×180 = 720°."}, bn:{q:"ষড়ভুজের অভ্যন্তরীণ কোণগুলোর সমষ্টি?", opts:["৫৪০°","৬২০°","৭২০°","৯০০°"], exp:"সমষ্টি = (n−২)×১৮০ = (৬−২)×১৮০ = ৭২০°।"} },
+    ]
+  },
+  vocab: {
+    easy: [
+      { ans:1, en:{q:"What does 'abundant' mean?", opts:["Scarce","Present in large amounts","Hidden","Dangerous"], exp:"'Abundant' means existing in very large quantities."}, bn:{q:"'Abundant' শব্দের অর্থ কী?", opts:["অপর্যাপ্ত","প্রচুর পরিমাণে","লুকানো","বিপজ্জনক"], exp:"'Abundant' মানে প্রচুর বা অনেক বেশি পরিমাণে বিদ্যমান।"} },
+      { ans:2, en:{q:"Synonym for 'brave'?", opts:["Timid","Cowardly","Courageous","Hesitant"], exp:"'Courageous' means willing to face danger — synonym for brave."}, bn:{q:"'Brave' শব্দের প্রতিশব্দ কী?", opts:["ভীতু","কাপুরুষ","সাহসী","দ্বিধাগ্রস্ত"], exp:"'Courageous' মানে সাহসী — 'brave' এর প্রতিশব্দ।"} },
+      { ans:1, en:{q:"What does 'transparent' mean?", opts:["Opaque","See-through","Reflective","Colorful"], exp:"'Transparent' allows light to pass through clearly."}, bn:{q:"'Transparent' শব্দের অর্থ কী?", opts:["অস্বচ্ছ","স্বচ্ছ / দেখা যায়","প্রতিফলনকারী","রঙিন"], exp:"'Transparent' মানে আলো সহজে পার হতে পারে এমন — স্বচ্ছ।"} },
+      { ans:2, en:{q:"Antonym of 'ancient'?", opts:["Old","Wise","Modern","Historic"], exp:"'Ancient' = very old. Antonym = 'modern'."}, bn:{q:"'Ancient' এর বিপরীত শব্দ কী?", opts:["পুরনো","জ্ঞানী","আধুনিক","ঐতিহাসিক"], exp:"'Ancient' মানে প্রাচীন। বিপরীত শব্দ = 'Modern' (আধুনিক)।"} },
+      { ans:2, en:{q:"What does 'persevere' mean?", opts:["Give up","Rest often","Continue despite difficulty","Celebrate"], exp:"'Persevere' = keep going despite difficulty."}, bn:{q:"'Persevere' শব্দের অর্থ কী?", opts:["হাল ছেড়ে দেওয়া","বিশ্রাম নেওয়া","কষ্ট সত্ত্বেও এগিয়ে যাওয়া","উদযাপন করা"], exp:"'Persevere' মানে কষ্ট বা বাধা সত্ত্বেও চেষ্টা চালিয়ে যাওয়া।"} },
+      { ans:1, en:{q:"What does 'fragile' mean?", opts:["Very strong","Easily broken","Flexible","Heavy"], exp:"'Fragile' means easily broken or damaged."}, bn:{q:"'Fragile' শব্দের অর্থ কী?", opts:["খুব শক্তিশালী","সহজে ভাঙে","নমনীয়","ভারী"], exp:"'Fragile' মানে সহজে ভেঙে যায় বা ক্ষতিগ্রস্ত হয়।"} },
+      { ans:1, en:{q:"Synonym for 'happy'?", opts:["Gloomy","Joyful","Tired","Angry"], exp:"'Joyful' = feeling great happiness — synonym for happy."}, bn:{q:"'Happy' শব্দের প্রতিশব্দ কী?", opts:["বিষণ্ণ","আনন্দিত","ক্লান্ত","রাগান্বিত"], exp:"'Joyful' মানে আনন্দিত — 'happy' এর প্রতিশব্দ।"} },
+      { ans:2, en:{q:"What does 'enormous' mean?", opts:["Very tiny","Medium-sized","Very large","Unknown"], exp:"'Enormous' means very large in size."}, bn:{q:"'Enormous' শব্দের অর্থ কী?", opts:["খুব ছোট","মাঝারি","অত্যন্ত বড়","অজানা"], exp:"'Enormous' মানে অত্যন্ত বড় বা বিশাল।"} },
+    ],
+    medium: [
+      { ans:1, en:{q:"What does 'ambiguous' mean?", opts:["Perfectly clear","Open to more than one interpretation","Completely wrong","Very large"], exp:"'Ambiguous' = can be understood in more than one way."}, bn:{q:"'Ambiguous' শব্দের অর্থ কী?", opts:["সম্পূর্ণ স্পষ্ট","একাধিক অর্থবোধক","সম্পূর্ণ ভুল","অনেক বড়"], exp:"'Ambiguous' মানে একাধিকভাবে বোঝা যায় এমন — দ্ব্যর্থবোধক।"} },
+      { ans:1, en:{q:"What does 'meticulous' mean?", opts:["Careless","Great attention to detail","Extremely fast","Very creative"], exp:"'Meticulous' = showing great care and precision."}, bn:{q:"'Meticulous' শব্দের অর্থ কী?", opts:["অসাবধান","সূক্ষ্মভাবে মনোযোগী","অত্যন্ত দ্রুত","সৃজনশীল"], exp:"'Meticulous' মানে অতি সাবধানে ও নিখুঁতভাবে কাজ করা।"} },
+      { ans:1, en:{q:"'Benevolent' most nearly means:", opts:["Hostile","Well-meaning and kind","Highly intelligent","Easily angered"], exp:"'Benevolent' = kindly and charitable."}, bn:{q:"'Benevolent' শব্দের অর্থের কাছাকাছি কোনটি?", opts:["শত্রুভাবাপন্ন","দয়ালু ও সদিচ্ছাপূর্ণ","অত্যন্ত বুদ্ধিমান","সহজে রাগান্বিত"], exp:"'Benevolent' মানে মঙ্গলকামী, দয়ালু ও উদার।"} },
+      { ans:2, en:{q:"What does 'eloquent' mean?", opts:["Speaking poorly","Using long words","Fluent and persuasive","Speaking a foreign language"], exp:"'Eloquent' = fluent or persuasive in speech."}, bn:{q:"'Eloquent' শব্দের অর্থ কী?", opts:["দুর্বলভাবে বলা","বড় বড় শব্দ ব্যবহার","সাবলীল ও প্রভাবশালী বক্তৃতা","বিদেশি ভাষায় কথা বলা"], exp:"'Eloquent' মানে সাবলীল, প্রভাবশালী ও বিশ্বাসযোগ্যভাবে কথা বলা।"} },
+      { ans:1, en:{q:"What does 'resilient' mean?", opts:["Easily broken","Able to recover quickly","Physically flexible","Heat resistant"], exp:"'Resilient' = ability to recover quickly."}, bn:{q:"'Resilient' শব্দের অর্থ কী?", opts:["সহজে ভেঙে পড়া","দ্রুত ঘুরে দাঁড়ানো","শারীরিকভাবে নমনীয়","তাপ-প্রতিরোধী"], exp:"'Resilient' মানে প্রতিকূলতার পর দ্রুত স্বাভাবিক হওয়ার ক্ষমতা।"} },
+      { ans:1, en:{q:"What does 'inevitable' mean?", opts:["Easily avoided","Certain to happen","Very dangerous","Completely wrong"], exp:"'Inevitable' = certain to happen; cannot be avoided."}, bn:{q:"'Inevitable' শব্দের অর্থ কী?", opts:["সহজে এড়ানো যায়","নিশ্চিতভাবে ঘটবে","খুব বিপজ্জনক","সম্পূর্ণ ভুল"], exp:"'Inevitable' মানে যা অবশ্যই ঘটবে, এড়ানো সম্ভব নয়।"} },
+      { ans:2, en:{q:"'Concise' writing is:", opts:["Very long","Full of errors","Brief and clear","Poetic"], exp:"'Concise' = expressing much in few words."}, bn:{q:"'Concise' লেখা কেমন হয়?", opts:["অনেক দীর্ঘ","ভুলে ভরা","সংক্ষিপ্ত ও স্পষ্ট","কাব্যিক"], exp:"'Concise' মানে কম কথায় বেশি অর্থ প্রকাশ করা — সংক্ষিপ্ত ও স্পষ্ট।"} },
+      { ans:1, en:{q:"What does 'empathy' mean?", opts:["Feeling superior","Sharing another's feelings","Strong dislike","Deep curiosity"], exp:"'Empathy' = understanding and sharing another's feelings."}, bn:{q:"'Empathy' শব্দের অর্থ কী?", opts:["শ্রেষ্ঠত্ব অনুভব করা","অন্যের অনুভূতি বোঝা ও ভাগ করা","তীব্র অপছন্দ","গভীর কৌতূহল"], exp:"'Empathy' মানে অন্যের অনুভূতি বুঝতে ও অনুভব করতে পারা।"} },
+    ],
+    hard: [
+      { ans:1, en:{q:"What does 'sycophant' mean?", opts:["Musical instrument","Flatters people in power","Logical contradiction","Rare disease"], exp:"A 'sycophant' flatters powerful people to gain favor."}, bn:{q:"'Sycophant' শব্দের অর্থ কী?", opts:["বাদ্যযন্ত্র","ক্ষমতাবানদের তোষামোদকারী","যৌক্তিক বিরোধ","বিরল রোগ"], exp:"'Sycophant' মানে যে সুবিধার জন্য ক্ষমতাবানদের অতিরিক্ত তোষামোদ করে।"} },
+      { ans:2, en:{q:"What does 'ephemeral' mean?", opts:["Lasting forever","Extremely beautiful","Lasting only a short time","Relating to the sky"], exp:"'Ephemeral' = lasting a very short time."}, bn:{q:"'Ephemeral' শব্দের অর্থ কী?", opts:["চিরস্থায়ী","অত্যন্ত সুন্দর","অল্প সময়ের জন্য","আকাশ সম্পর্কিত"], exp:"'Ephemeral' মানে ক্ষণস্থায়ী — অল্প সময়ের জন্য বিদ্যমান।"} },
+      { ans:1, en:{q:"'Pragmatic' means:", opts:["Idealistic","Dealing practically","Very theoretical","Extremely stubborn"], exp:"'Pragmatic' = dealing sensibly and practically."}, bn:{q:"'Pragmatic' শব্দের অর্থ কী?", opts:["আদর্শবাদী","বাস্তববাদীভাবে কাজ করা","অত্যন্ত তাত্ত্বিক","অতিরিক্ত জেদী"], exp:"'Pragmatic' মানে বাস্তববাদী — তত্ত্বের চেয়ে ব্যবহারিক দিকে মনোযোগী।"} },
+      { ans:1, en:{q:"What does 'obfuscate' mean?", opts:["To clarify","To make unclear","To brighten","To shorten"], exp:"'Obfuscate' = to make deliberately unclear."}, bn:{q:"'Obfuscate' শব্দের অর্থ কী?", opts:["স্পষ্ট করা","অস্পষ্ট করা","উজ্জ্বল করা","ছোট করা"], exp:"'Obfuscate' মানে ইচ্ছাকৃতভাবে কিছু জটিল বা অস্পষ্ট করে তোলা।"} },
+      { ans:1, en:{q:"What does 'equivocal' mean?", opts:["Absolutely certain","Open to two interpretations","Completely fair","Relating to animals"], exp:"'Equivocal' = open to more than one interpretation."}, bn:{q:"'Equivocal' শব্দের অর্থ কী?", opts:["নিশ্চিত","দুইভাবে ব্যাখ্যাযোগ্য","সম্পূর্ণ ন্যায্য","প্রাণী সম্পর্কিত"], exp:"'Equivocal' মানে দ্ব্যর্থবোধক — দুইভাবে বোঝা যায়।"} },
+      { ans:1, en:{q:"What does 'perfidious' mean?", opts:["Extremely loyal","Deceitful and untrustworthy","Highly skilled","Overly cautious"], exp:"'Perfidious' = guilty of betrayal; deceitful."}, bn:{q:"'Perfidious' শব্দের অর্থ কী?", opts:["অত্যন্ত বিশ্বস্ত","বিশ্বাসঘাতক ও অবিশ্বস্ত","অত্যন্ত দক্ষ","অতিরিক্ত সতর্ক"], exp:"'Perfidious' মানে বিশ্বাসঘাতক — যে বিশ্বাস ভঙ্গ করে।"} },
+      { ans:1, en:{q:"'Laconic' speech is:", opts:["Very long and detailed","Using few words","Formal and polished","Filled with metaphors"], exp:"'Laconic' = using very few words to express a lot."}, bn:{q:"'Laconic' বক্তৃতা কেমন হয়?", opts:["অনেক দীর্ঘ ও বিস্তারিত","কম কথায় বেশি অর্থ","আনুষ্ঠানিক ও পরিশীলিত","রূপকথায় পূর্ণ"], exp:"'Laconic' মানে অল্প কথায় অনেক বলা — সংক্ষিপ্ত ও তীক্ষ্ণ।"} },
+      { ans:1, en:{q:"What does 'magnanimous' mean?", opts:["Very greedy","Generous and forgiving","Extremely clever","Easily frightened"], exp:"'Magnanimous' = very generous and forgiving."}, bn:{q:"'Magnanimous' শব্দের অর্থ কী?", opts:["অত্যন্ত লোভী","উদার ও ক্ষমাশীল","অত্যন্ত চালাক","সহজে ভয় পায়"], exp:"'Magnanimous' মানে উদার ও ক্ষমাশীল — বিশেষত প্রতিপক্ষের প্রতি।"} },
+    ]
+  },
+  science: {
+    easy: [
+      { ans:1, en:{q:"Chemical symbol for water?", opts:["WA","H₂O","HO₂","W₂O"], exp:"Water = 2 hydrogen + 1 oxygen → H₂O."}, bn:{q:"পানির রাসায়নিক সংকেত কী?", opts:["WA","H₂O","HO₂","W₂O"], exp:"পানি = ২টি হাইড্রোজেন + ১টি অক্সিজেন → H₂O।"} },
+      { ans:2, en:{q:"What force pulls objects toward Earth?", opts:["Magnetism","Friction","Gravity","Tension"], exp:"Gravity pulls all objects toward Earth's center."}, bn:{q:"কোন বল বস্তুকে পৃথিবীর দিকে টানে?", opts:["চুম্বকত্ব","ঘর্ষণ","মহাকর্ষ","টান"], exp:"মহাকর্ষ বল সব বস্তুকে পৃথিবীর কেন্দ্রের দিকে টানে।"} },
+      { ans:2, en:{q:"Gas plants absorb in photosynthesis?", opts:["Oxygen","Nitrogen","Carbon dioxide","Hydrogen"], exp:"Plants absorb CO₂ and release O₂ in photosynthesis."}, bn:{q:"সালোকসংশ্লেষণে গাছ কোন গ্যাস শোষণ করে?", opts:["অক্সিজেন","নাইট্রোজেন","কার্বন ডাইঅক্সাইড","হাইড্রোজেন"], exp:"সালোকসংশ্লেষণে গাছ CO₂ শোষণ করে ও O₂ ছাড়ে।"} },
+      { ans:2, en:{q:"How many chambers does the human heart have?", opts:["2","3","4","6"], exp:"4 chambers: left/right atria and left/right ventricles."}, bn:{q:"মানুষের হৃদয়ে কতটি প্রকোষ্ঠ আছে?", opts:["২","৩","৪","৬"], exp:"৪টি প্রকোষ্ঠ: বাম ও ডান অলিন্দ এবং বাম ও ডান নিলয়।"} },
+      { ans:3, en:{q:"Closest planet to the Sun?", opts:["Venus","Earth","Mars","Mercury"], exp:"Mercury is the closest planet to the Sun."}, bn:{q:"সূর্যের সবচেয়ে কাছের গ্রহ কোনটি?", opts:["শুক্র","পৃথিবী","মঙ্গল","বুধ"], exp:"বুধ গ্রহ সূর্যের সবচেয়ে কাছে অবস্থিত।"} },
+      { ans:2, en:{q:"Boiling point of water (°C)?", opts:["90°C","95°C","100°C","110°C"], exp:"Water boils at 100°C at standard pressure."}, bn:{q:"পানির স্ফুটনাঙ্ক কত (°C)?", opts:["৯০°C","৯৫°C","১০০°C","১১০°C"], exp:"স্বাভাবিক চাপে পানি ১০০°C তাপমাত্রায় ফুটে।"} },
+      { ans:2, en:{q:"What type of animal is a whale?", opts:["Fish","Reptile","Mammal","Amphibian"], exp:"Whales are mammals — they breathe air and nurse young."}, bn:{q:"তিমি কোন ধরনের প্রাণী?", opts:["মাছ","সরীসৃপ","স্তন্যপায়ী","উভচর"], exp:"তিমি স্তন্যপায়ী — বায়ু দিয়ে শ্বাস নেয় এবং বাচ্চাকে দুধ খাওয়ায়।"} },
+      { ans:2, en:{q:"What is the center of an atom called?", opts:["Electron","Proton","Nucleus","Neutron"], exp:"The nucleus is the center of an atom."}, bn:{q:"পরমাণুর কেন্দ্রকে কী বলে?", opts:["ইলেকট্রন","প্রোটন","নিউক্লিয়াস","নিউট্রন"], exp:"নিউক্লিয়াস হলো পরমাণুর কেন্দ্র, যেখানে প্রোটন ও নিউট্রন থাকে।"} },
+    ],
+    medium: [
+      { ans:2, en:{q:"Newton's Second Law of Motion?", opts:["Equal and opposite reaction","Object in motion stays in motion","F = ma","Energy is conserved"], exp:"F = ma: Force equals mass times acceleration."}, bn:{q:"নিউটনের গতির দ্বিতীয় সূত্র কী?", opts:["প্রতিটি ক্রিয়ার সমান প্রতিক্রিয়া আছে","গতিশীল বস্তু গতিশীল থাকে","F = ma","শক্তির নিত্যতা"], exp:"F = ma: বল = ভর × ত্বরণ।"} },
+      { ans:2, en:{q:"The 'powerhouse of the cell'?", opts:["Nucleus","Ribosome","Mitochondria","Vacuole"], exp:"Mitochondria produce ATP through cellular respiration."}, bn:{q:"কোষের 'শক্তিঘর' কোনটি?", opts:["নিউক্লিয়াস","রাইবোসোম","মাইটোকন্ড্রিয়া","ভ্যাকুওল"], exp:"মাইটোকন্ড্রিয়া কোষীয় শ্বসনের মাধ্যমে ATP (শক্তি) উৎপন্ন করে।"} },
+      { ans:1, en:{q:"pH of a neutral substance?", opts:["0","7","14","5"], exp:"pH 7 = neutral. Below 7 = acidic, above 7 = alkaline."}, bn:{q:"নিরপেক্ষ পদার্থের pH কত?", opts:["০","৭","১৪","৫"], exp:"pH ৭ = নিরপেক্ষ। ৭-এর নিচে = অম্লীয়, ৭-এর উপরে = ক্ষারীয়।"} },
+      { ans:2, en:{q:"Which bond involves sharing electrons?", opts:["Ionic","Hydrogen","Covalent","Metallic"], exp:"A covalent bond forms when atoms share electrons."}, bn:{q:"কোন বন্ধনে ইলেকট্রন ভাগ করে নেওয়া হয়?", opts:["আয়নিক","হাইড্রোজেন","সমযোজী","ধাতব"], exp:"সমযোজী (Covalent) বন্ধনে দুইটি পরমাণু ইলেকট্রন ভাগ করে নেয়।"} },
+      { ans:1, en:{q:"Ozone layer is in which atmosphere layer?", opts:["Troposphere","Stratosphere","Mesosphere","Thermosphere"], exp:"Ozone layer is in the stratosphere, ~15–35 km up."}, bn:{q:"ওজোন স্তর বায়ুমণ্ডলের কোন স্তরে আছে?", opts:["ট্রপোস্ফিয়ার","স্ট্র্যাটোস্ফিয়ার","মেসোস্ফিয়ার","থার্মোস্ফিয়ার"], exp:"ওজোন স্তর স্ট্র্যাটোস্ফিয়ারে আছে, প্রায় ১৫–৩৫ কিমি উচ্চতায়।"} },
+      { ans:1, en:{q:"Chemical formula for table salt?", opts:["KCl","NaCl","CaCl₂","MgCl₂"], exp:"Table salt is sodium chloride — NaCl."}, bn:{q:"খাবার লবণের রাসায়নিক সংকেত কী?", opts:["KCl","NaCl","CaCl₂","MgCl₂"], exp:"খাবার লবণ হলো সোডিয়াম ক্লোরাইড — NaCl।"} },
+      { ans:2, en:{q:"What force opposes motion between surfaces?", opts:["Gravity","Tension","Friction","Magnetism"], exp:"Friction resists the motion of surfaces sliding against each other."}, bn:{q:"কোন বল দুইটি পৃষ্ঠের মধ্যে গতিকে বাধা দেয়?", opts:["মহাকর্ষ","টান","ঘর্ষণ","চুম্বকত্ব"], exp:"ঘর্ষণ বল দুটি পৃষ্ঠের মধ্যে আপেক্ষিক গতিকে বাধা দেয়।"} },
+      { ans:1, en:{q:"Which planet has the most moons?", opts:["Jupiter","Saturn","Uranus","Neptune"], exp:"Saturn has the most confirmed moons — over 140."}, bn:{q:"কোন গ্রহের সবচেয়ে বেশি চাঁদ আছে?", opts:["বৃহস্পতি","শনি","ইউরেনাস","নেপচুন"], exp:"শনি গ্রহের সবচেয়ে বেশি চাঁদ আছে — ১৪০টিরও বেশি।"} },
+    ],
+    hard: [
+      { ans:2, en:{q:"Glucose → pyruvate without oxygen?", opts:["Aerobic respiration","Photosynthesis","Glycolysis","Krebs cycle"], exp:"Glycolysis occurs in the cytoplasm, requires no oxygen."}, bn:{q:"অক্সিজেন ছাড়া গ্লুকোজ → পাইরুভেট প্রক্রিয়ার নাম কী?", opts:["অ্যারোবিক শ্বসন","সালোকসংশ্লেষণ","গ্লাইকোলাইসিস","ক্রেবস চক্র"], exp:"গ্লাইকোলাইসিস সাইটোপ্লাজমে ঘটে এবং অক্সিজেন লাগে না।"} },
+      { ans:3, en:{q:"SI unit of electric resistance?", opts:["Volt","Watt","Ampere","Ohm"], exp:"Resistance is measured in Ohms (Ω). V = IR."}, bn:{q:"বৈদ্যুতিক রোধের SI একক কী?", opts:["ভোল্ট","ওয়াট","অ্যাম্পিয়ার","ওহম"], exp:"রোধ ওহম (Ω) এককে পরিমাপ করা হয়। ওহমের সূত্র: V = IR।"} },
+      { ans:1, en:{q:"Heavy nuclei splitting is called?", opts:["Fusion","Fission","Decay","Synthesis"], exp:"Fission splits heavy nuclei, releasing enormous energy."}, bn:{q:"ভারী নিউক্লিয়াস ভাঙার প্রক্রিয়াকে কী বলে?", opts:["ফিউশন","ফিশন","ক্ষয়","সংশ্লেষণ"], exp:"নিউক্লিয়ার ফিশনে ভারী নিউক্লিয়াস ভেঙে প্রচুর শক্তি নির্গত হয়।"} },
+      { ans:1, en:{q:"Plants losing water through leaves?", opts:["Osmosis","Transpiration","Evaporation","Condensation"], exp:"Transpiration = water evaporating from plant leaves."}, bn:{q:"পাতার মাধ্যমে গাছের পানি হারানোর প্রক্রিয়া?", opts:["অভিস্রবণ","বাষ্পমোচন","বাষ্পীভবন","ঘনীভবন"], exp:"বাষ্পমোচন (Transpiration) = গাছের পাতা ও কাণ্ড থেকে পানির বাষ্পীভবন।"} },
+      { ans:2, en:{q:"Which particle determines an element's identity?", opts:["Neutron","Electron","Proton","Quark"], exp:"The number of protons (atomic number) defines the element."}, bn:{q:"কোন কণা একটি মৌলের পরিচয় নির্ধারণ করে?", opts:["নিউট্রন","ইলেকট্রন","প্রোটন","কোয়ার্ক"], exp:"প্রোটনের সংখ্যা (পারমাণবিক সংখ্যা) মৌলের পরিচয় নির্ধারণ করে।"} },
+      { ans:1, en:{q:"Speed of light in vacuum?", opts:["3×10⁶ m/s","3×10⁸ m/s","3×10¹⁰ m/s","3×10⁴ m/s"], exp:"Speed of light ≈ 3×10⁸ m/s (300,000 km/s)."}, bn:{q:"শূন্যমাধ্যমে আলোর গতিবেগ কত?", opts:["3×10⁶ m/s","3×10⁸ m/s","3×10¹⁰ m/s","3×10⁴ m/s"], exp:"আলোর গতিবেগ ≈ 3×10⁸ m/s (প্রায় ৩ লক্ষ কিমি/সেকেন্ড)।"} },
+      { ans:2, en:{q:"Which molecule carries genetic information?", opts:["ATP","RNA","DNA","Protein"], exp:"DNA stores the genetic blueprint of living organisms."}, bn:{q:"কোন অণু জিনগত তথ্য বহন করে?", opts:["ATP","RNA","DNA","প্রোটিন"], exp:"DNA (ডিঅক্সিরাইবোনিউক্লিক অ্যাসিড) জীবের জিনগত তথ্য সংরক্ষণ করে।"} },
+      { ans:2, en:{q:"Boyle's Law states that gas pressure and volume are:", opts:["Directly proportional","Unrelated","Inversely proportional","Equal"], exp:"Boyle's Law: At constant temp, P₁V₁ = P₂V₂."}, bn:{q:"বয়েলের সূত্র অনুযায়ী গ্যাসের চাপ ও আয়তন:", opts:["সরাসরি সমানুপাতিক","সম্পর্কহীন","ব্যস্তানুপাতিক","সমান"], exp:"বয়েলের সূত্র: স্থির তাপমাত্রায় চাপ ও আয়তন ব্যস্তানুপাতিক। P₁V₁ = P₂V₂।"} },
+    ]
+  }
+};
+
+// ══════════════════════════════════════
+//  GAME STATE
+// ══════════════════════════════════════
+const COLORS = { math:'#f0c040', vocab:'#50e8b0', science:'#f06090' };
+let selectedSubjects=[], difficulty='easy', queue=[], currentIdx=0, score=0, streak=0, answered=false;
+let timerInterval=null, timeLeft=0, TIME_LIMIT=25;
+let stats={ math:{correct:0,total:0}, vocab:{correct:0,total:0}, science:{correct:0,total:0} };
+let lastScore=null;
+
+// ── LEADERBOARD ──
+function getLeaderboard(){ try{return JSON.parse(localStorage.getItem('brainblitz_lb')||'[]');}catch(e){return [];} }
+function saveLeaderboard(lb){ try{localStorage.setItem('brainblitz_lb',JSON.stringify(lb));}catch(e){} }
+function addToLeaderboard(name,sc,diff,subjects){
+  const lb=getLeaderboard();
+  lb.push({name,score:sc,diff,subjects:subjects.join('+'),date:new Date().toLocaleDateString()});
+  lb.sort((a,b)=>b.score-a.score);
+  saveLeaderboard(lb.slice(0,20));
+}
+function renderLeaderboard(){
+  const lb=getLeaderboard();
+  const table=document.getElementById('lb-table');
+  if(!lb.length){table.innerHTML=`<div class="lb-empty">${t('lbEmpty')}</div>`;return;}
+  const medals=['🥇','🥈','🥉'], rc=['rank-1','rank-2','rank-3'];
+  table.innerHTML=lb.map((e,i)=>{
+    const isNew=lastScore&&e.name===lastScore.name&&e.score===lastScore.score&&e.date===new Date().toLocaleDateString();
+    return `<div class="lb-row">
+      <div class="lb-rank ${rc[i]||''}">${medals[i]||(i+1)}</div>
+      <div style="flex:1">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="lb-name">${e.name}</span>
+          ${isNew?'<span class="lb-new-badge">NEW</span>':''}
+        </div>
+        <div class="lb-meta">${e.diff} • ${e.subjects} • ${e.date}</div>
+      </div>
+      <div class="lb-score" style="color:${i===0?'#f0c040':i===1?'#b0b8c8':i===2?'#cd7c40':'var(--text)'}">${e.score} pts</div>
+    </div>`;
+  }).join('');
+}
+
+// ── MENU ──
+function toggleSubject(el){
+  playTone('click');
+  const s=el.dataset.subject;
+  el.classList.toggle('selected');
+  selectedSubjects=selectedSubjects.includes(s)?selectedSubjects.filter(x=>x!==s):[...selectedSubjects,s];
+  updateStartBtn();
+}
+function setDiff(el){
+  playTone('click');
+  document.querySelectorAll('.diff-btn').forEach(b=>b.classList.remove('selected'));
+  el.classList.add('selected');
+  difficulty=el.dataset.diff;
+  TIME_LIMIT=difficulty==='easy'?25:difficulty==='medium'?18:12;
+}
+function updateStartBtn(){
+  const name=document.getElementById('player-name').value.trim();
+  const btn=document.getElementById('start-btn');
+  if(selectedSubjects.length>0&&name.length>0){
+    btn.disabled=false;
+    btn.textContent=t('startReady',selectedSubjects.length);
+  } else {
+    btn.disabled=true;
+    btn.textContent=t('startDefault');
+  }
+}
+
+// ── GAME ──
+function shuffle(arr){const a=[...arr];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+
+function startGame(){
+  score=0;streak=0;currentIdx=0;
+  stats={math:{correct:0,total:0},vocab:{correct:0,total:0},science:{correct:0,total:0}};
+  let pool=[];
+  selectedSubjects.forEach(sub=>QUESTIONS[sub][difficulty].forEach(q=>pool.push({...q,subject:sub})));
+  queue=shuffle(pool).slice(0,10);
+  playTone('start');
+  showScreen('screen-game');
+  renderQuestion();
+}
+
+function renderQuestion(keepState){
+  if(!keepState) answered=false;
+  const q=queue[currentIdx],total=queue.length;
+  const qData=q[lang];
+
+  document.getElementById('score-display').textContent=score;
+  document.getElementById('streak-display').textContent=streak;
+  document.getElementById('q-counter').textContent=`${currentIdx+1}/${total}`;
+
+  const fill=document.getElementById('progress-fill');
+  fill.style.width=(currentIdx/total*100)+'%';
+  fill.className='progress-fill fill-'+q.subject;
+
+  const badge=document.getElementById('q-badge');
+  badge.textContent=(t('subjectNames')[q.subject]||q.subject).toUpperCase();
+  badge.className='q-subject-badge subject-tag-'+q.subject;
+  document.getElementById('q-diff-label').textContent=t('diffNames')[difficulty];
+  document.getElementById('q-text').textContent=qData.q;
+
+  const grid=document.getElementById('answers-grid');
+  grid.innerHTML='';
+  qData.opts.forEach((opt,i)=>{
+    const btn=document.createElement('button');
+    btn.className='ans-btn';
+    btn.textContent=opt;
+    if(keepState&&answered){
+      btn.disabled=true;
+      if(i===q.ans) btn.classList.add('correct');
+    } else {
+      btn.onclick=()=>selectAnswer(i);
+    }
+    grid.appendChild(btn);
+  });
+
+  if(!keepState){
+    document.getElementById('feedback-box').className='feedback-box';
+    const nb=document.getElementById('next-btn');
+    nb.style.display='none'; nb.className='';
+    startTimer(q.subject);
+  }
+}
+
+function startTimer(sub){
+  clearInterval(timerInterval); timeLeft=TIME_LIMIT;
+  const fill=document.getElementById('timer-fill');
+  fill.style.width='100%'; fill.style.background=COLORS[sub];
+  timerInterval=setInterval(()=>{
+    timeLeft-=0.1;
+    const pct=Math.max(0,(timeLeft/TIME_LIMIT)*100);
+    fill.style.width=pct+'%';
+    if(pct<30) fill.style.background='#f04060';
+    else if(pct<60) fill.style.background='#f0a040';
+    if(timeLeft<=0){clearInterval(timerInterval);if(!answered)timeUp();}
+  },100);
+}
+
+function timeUp(){
+  answered=true; streak=0;
+  playTone('timeup');
+  document.getElementById('streak-display').textContent=0;
+  const q=queue[currentIdx]; stats[q.subject].total++;
+  document.querySelectorAll('.ans-btn').forEach((b,i)=>{b.disabled=true;if(i===q.ans)b.classList.add('correct');});
+  showFeedback(false, t('timeup')+q[lang].exp);
+}
+
+function selectAnswer(idx){
+  if(answered) return;
+  answered=true; clearInterval(timerInterval);
+  const q=queue[currentIdx];
+  document.querySelectorAll('.ans-btn').forEach((b,i)=>{
+    b.disabled=true;
+    if(i===q.ans) b.classList.add('correct');
+    else if(i===idx&&idx!==q.ans) b.classList.add('wrong');
+  });
+  stats[q.subject].total++;
+  if(idx===q.ans){
+    streak++;
+    const bonus=streak>=3?Math.floor(streak*.5):0;
+    const pts=10+(difficulty==='medium'?5:difficulty==='hard'?10:0)+bonus;
+    score+=pts; stats[q.subject].correct++;
+    playTone(streak>=3?'streak':'correct');
+    document.getElementById('score-display').textContent=score;
+    document.getElementById('streak-display').textContent=streak;
+    showFeedback(true, t('correct',pts,streak)+q[lang].exp);
+  } else {
+    streak=0;
+    playTone('wrong');
+    document.getElementById('streak-display').textContent=0;
+    showFeedback(false, t('wrong')+q[lang].exp);
+  }
+}
+
+function showFeedback(ok,msg){
+  const fb=document.getElementById('feedback-box');
+  fb.textContent=msg; fb.className='feedback-box show '+(ok?'correct':'wrong');
+  const nb=document.getElementById('next-btn');
+  nb.style.display='block'; nb.className='show';
+  nb.textContent=currentIdx+1<queue.length?t('nextQ'):t('seeResults');
+}
+
+function nextQuestion(){
+  currentIdx++;
+  if(currentIdx>=queue.length) showResults(); else renderQuestion();
+}
+
+// ── RESULTS ──
+function showResults(){
+  clearInterval(timerInterval);
+  const name=document.getElementById('player-name').value.trim()||'Player';
+  addToLeaderboard(name,score,difficulty,selectedSubjects);
+  lastScore={name,score};
+  playTone('win');
+
+  const correct=selectedSubjects.reduce((a,s)=>a+stats[s].correct,0);
+  const total=queue.length,ratio=correct/total;
+  const grade=t('grade',ratio);
+  const color=ratio>=.9?'#f0c040':ratio>=.75?'#50e8b0':ratio>=.6?'#80b0ff':ratio>=.45?'#f0a060':'#f06090';
+
+  document.getElementById('final-score').textContent=score;
+  document.getElementById('final-score').style.color=color;
+  document.getElementById('grade-display').textContent=grade;
+  document.getElementById('grade-display').style.color=color;
+
+  const bd=document.getElementById('breakdown');
+  bd.innerHTML=`<div class="breakdown-row" style="background:rgba(255,255,255,.03)">
+    <span style="color:var(--muted);font-size:.8rem;font-weight:600;letter-spacing:1px">${t('subject')}</span>
+    <span style="color:var(--muted);font-size:.8rem;font-weight:600;letter-spacing:1px">${t('score')}</span>
+  </div>`;
+  selectedSubjects.forEach(sub=>{
+    const s=stats[sub]; if(!s.total) return;
+    const p=Math.round(s.correct/s.total*100);
+    bd.innerHTML+=`<div class="breakdown-row"><div class="breakdown-label">
+      <div class="breakdown-dot" style="background:${COLORS[sub]}"></div>
+      <span>${t('subjectNames')[sub]}</span></div>
+      <span class="breakdown-val" style="color:${COLORS[sub]}">${s.correct}/${s.total} (${p}%)</span></div>`;
+  });
+  bd.innerHTML+=`<div class="breakdown-row" style="background:rgba(255,255,255,.03)">
+    <span style="font-weight:600">${t('player')}</span><span class="breakdown-val">${name}</span></div>`;
+  bd.innerHTML+=`<div class="breakdown-row" style="background:rgba(255,255,255,.03)">
+    <span style="font-weight:600">${t('totalScore')}</span><span class="breakdown-val">${score} pts</span></div>`;
+  showScreen('screen-results');
+}
+
+function backToMenu(){ showScreen('screen-menu'); }
+function gotoLB(){ showScreen('screen-leaderboard'); }
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  if(id==='screen-leaderboard') renderLeaderboard();
+}
+
+// ── INIT ──
+applyLang();
+</script>
+</body>
+</html>
